@@ -29,5 +29,8 @@ spec:
         expression: |
           Object{
             metadata: Object.metadata{
+              labels: {
+                "republic.rome/travel-permit": "granted"
+              }
             }
           }

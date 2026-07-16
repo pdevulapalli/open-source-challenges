@@ -12,7 +12,7 @@ metadata:
       are unregistered and cannot be admitted to the Republic's cluster.
 spec:
   validationActions:
-    - Audit
+    - Deny
   matchConstraints:
     resourceRules:
       - apiGroups: [""]
