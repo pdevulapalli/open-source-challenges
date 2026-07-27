@@ -23,10 +23,9 @@ spec:
         operations: ["CREATE", "UPDATE"]
         resources: ["pods"]
     namespaceSelector:
-      matchExpressions:
-        - key: kubernetes.io/metadata.name
-          operator: In
-          values: ["gallia", "britannia", "aegyptus"]
+      matchLabels:
+        republic.rome/realm: province
+        
   validations:
     - expression: "has(object.metadata.labels) && 'republic.rome/gens' in object.metadata.labels"
       message: "All citizens must declare their gens. Unregistered workloads are not permitted in the Republic."

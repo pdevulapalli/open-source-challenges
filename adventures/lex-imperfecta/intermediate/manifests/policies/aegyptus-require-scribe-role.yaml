@@ -23,7 +23,7 @@ spec:
         resources: ["pods"]
     namespaceSelector:
       matchLabels:
-        republic.rome/realm: province
+        kubernetes.io/metadata.name: aegyptus
   validations:
     - expression: >-
         has(object.metadata.labels) &&

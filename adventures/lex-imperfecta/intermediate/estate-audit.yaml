@@ -1,0 +1,301 @@
+apiVersion: v1
+items:
+- apiVersion: wgpolicyk8s.io/v1alpha2
+  kind: PolicyReport
+  metadata:
+    creationTimestamp: "2026-07-27T01:11:59Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/managed-by: kyverno
+    name: 5dcb33e3-574d-47b8-93fb-f2b3ffa125c8
+    namespace: aegyptus
+    ownerReferences:
+    - apiVersion: v1
+      kind: Pod
+      name: aemilia-scribe
+      uid: 5dcb33e3-574d-47b8-93fb-f2b3ffa125c8
+    resourceVersion: "1429"
+    uid: b01f72b7-649f-4610-a932-d2ea22bdcc24
+  results:
+  - category: Pod Security
+    message: success
+    policy: no-privileged-containers
+    properties:
+      process: background scan
+    result: pass
+    scored: true
+    severity: high
+    source: KyvernoValidatingPolicy
+    timestamp:
+      nanos: 0
+      seconds: 1785114709
+  - category: Best Practices
+    message: success
+    policy: require-census
+    properties:
+      process: background scan
+    result: pass
+    scored: true
+    severity: medium
+    source: KyvernoValidatingPolicy
+    timestamp:
+      nanos: 0
+      seconds: 1785114709
+  scope:
+    apiVersion: v1
+    kind: Pod
+    name: aemilia-scribe
+    namespace: aegyptus
+    uid: 5dcb33e3-574d-47b8-93fb-f2b3ffa125c8
+  summary:
+    error: 0
+    fail: 0
+    pass: 2
+    skip: 0
+    warn: 0
+- apiVersion: wgpolicyk8s.io/v1alpha2
+  kind: PolicyReport
+  metadata:
+    creationTimestamp: "2026-07-27T01:11:59Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/managed-by: kyverno
+    name: b96840de-f56d-450d-9d9e-ad3b81cef636
+    namespace: aegyptus
+    ownerReferences:
+    - apiVersion: v1
+      kind: Pod
+      name: priscus-scribe
+      uid: b96840de-f56d-450d-9d9e-ad3b81cef636
+    resourceVersion: "1421"
+    uid: 8870fff8-78b6-4fdd-bb8c-504cdb4abfb2
+  results:
+  - category: Pod Security
+    message: success
+    policy: no-privileged-containers
+    properties:
+      process: background scan
+    result: pass
+    scored: true
+    severity: high
+    source: KyvernoValidatingPolicy
+    timestamp:
+      nanos: 0
+      seconds: 1785114709
+  - category: Best Practices
+    message: 'rule is skipped due to policy exception: aegyptus/aegyptus-legacy-workload'
+    policy: require-census
+    properties:
+      exceptions: aegyptus-legacy-workload
+      process: background scan
+    result: skip
+    rule: exception
+    scored: true
+    severity: medium
+    source: KyvernoValidatingPolicy
+    timestamp:
+      nanos: 0
+      seconds: 1785114709
+  scope:
+    apiVersion: v1
+    kind: Pod
+    name: priscus-scribe
+    namespace: aegyptus
+    uid: b96840de-f56d-450d-9d9e-ad3b81cef636
+  summary:
+    error: 0
+    fail: 0
+    pass: 1
+    skip: 1
+    warn: 0
+- apiVersion: wgpolicyk8s.io/v1alpha2
+  kind: PolicyReport
+  metadata:
+    creationTimestamp: "2026-07-27T01:11:59Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/managed-by: kyverno
+    name: 5450fc81-57ed-4a67-a396-d859914cfa8c
+    namespace: britannia
+    ownerReferences:
+    - apiVersion: v1
+      kind: Pod
+      name: citizen
+      uid: 5450fc81-57ed-4a67-a396-d859914cfa8c
+    resourceVersion: "1427"
+    uid: 76711f7d-6ab8-4b1b-8b6d-ad0e39b3436f
+  results:
+  - category: Pod Security
+    message: success
+    policy: no-privileged-containers
+    properties:
+      process: background scan
+    result: pass
+    scored: true
+    severity: high
+    source: KyvernoValidatingPolicy
+    timestamp:
+      nanos: 0
+      seconds: 1785114709
+  - category: Best Practices
+    message: success
+    policy: require-census
+    properties:
+      process: background scan
+    result: pass
+    scored: true
+    severity: medium
+    source: KyvernoValidatingPolicy
+    timestamp:
+      nanos: 0
+      seconds: 1785114709
+  scope:
+    apiVersion: v1
+    kind: Pod
+    name: citizen
+    namespace: britannia
+    uid: 5450fc81-57ed-4a67-a396-d859914cfa8c
+  summary:
+    error: 0
+    fail: 0
+    pass: 2
+    skip: 0
+    warn: 0
+- apiVersion: wgpolicyk8s.io/v1alpha2
+  kind: PolicyReport
+  metadata:
+    creationTimestamp: "2026-07-27T01:11:59Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/managed-by: kyverno
+    name: f3a5622c-5348-41f4-994c-311f2120a2ec
+    namespace: gallia
+    ownerReferences:
+    - apiVersion: v1
+      kind: Pod
+      name: citizen
+      uid: f3a5622c-5348-41f4-994c-311f2120a2ec
+    resourceVersion: "1423"
+    uid: a12bbcbc-753d-4adb-936f-7669de939add
+  results:
+  - category: Pod Security
+    message: success
+    policy: no-privileged-containers
+    properties:
+      process: background scan
+    result: pass
+    scored: true
+    severity: high
+    source: KyvernoValidatingPolicy
+    timestamp:
+      nanos: 0
+      seconds: 1785114709
+  - category: Best Practices
+    message: success
+    policy: require-census
+    properties:
+      process: background scan
+    result: pass
+    scored: true
+    severity: medium
+    source: KyvernoValidatingPolicy
+    timestamp:
+      nanos: 0
+      seconds: 1785114709
+  scope:
+    apiVersion: v1
+    kind: Pod
+    name: citizen
+    namespace: gallia
+    uid: f3a5622c-5348-41f4-994c-311f2120a2ec
+  summary:
+    error: 0
+    fail: 0
+    pass: 2
+    skip: 0
+    warn: 0
+- apiVersion: wgpolicyk8s.io/v1alpha2
+  kind: PolicyReport
+  metadata:
+    creationTimestamp: "2026-07-27T01:11:59Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/managed-by: kyverno
+    name: 2448c601-f087-47e7-9744-ac9d7caebb38
+    namespace: hispania
+    ownerReferences:
+    - apiVersion: v1
+      kind: Pod
+      name: citizen
+      uid: 2448c601-f087-47e7-9744-ac9d7caebb38
+    resourceVersion: "1425"
+    uid: 2936c58c-8a52-433e-bf10-421f7d0b84f3
+  results:
+  - category: Pod Security
+    message: success
+    policy: no-privileged-containers
+    properties:
+      process: background scan
+    result: pass
+    scored: true
+    severity: high
+    source: KyvernoValidatingPolicy
+    timestamp:
+      nanos: 0
+      seconds: 1785114709
+  scope:
+    apiVersion: v1
+    kind: Pod
+    name: citizen
+    namespace: hispania
+    uid: 2448c601-f087-47e7-9744-ac9d7caebb38
+  summary:
+    error: 0
+    fail: 0
+    pass: 1
+    skip: 0
+    warn: 0
+- apiVersion: wgpolicyk8s.io/v1alpha2
+  kind: PolicyReport
+  metadata:
+    creationTimestamp: "2026-07-27T01:12:00Z"
+    generation: 1
+    labels:
+      app.kubernetes.io/managed-by: kyverno
+    name: d61497d4-6977-4230-9aac-a6479b8f675f
+    namespace: hispania
+    ownerReferences:
+    - apiVersion: v1
+      kind: Pod
+      name: unregistered-scribe
+      uid: d61497d4-6977-4230-9aac-a6479b8f675f
+    resourceVersion: "1431"
+    uid: 255a131f-aa62-4d73-b427-b953204e6c04
+  results:
+  - category: Pod Security
+    message: success
+    policy: no-privileged-containers
+    properties:
+      process: background scan
+    result: pass
+    scored: true
+    severity: high
+    source: KyvernoValidatingPolicy
+    timestamp:
+      nanos: 0
+      seconds: 1785114710
+  scope:
+    apiVersion: v1
+    kind: Pod
+    name: unregistered-scribe
+    namespace: hispania
+    uid: d61497d4-6977-4230-9aac-a6479b8f675f
+  summary:
+    error: 0
+    fail: 0
+    pass: 1
+    skip: 0
+    warn: 0
+kind: List
+metadata:
+  resourceVersion: ""
