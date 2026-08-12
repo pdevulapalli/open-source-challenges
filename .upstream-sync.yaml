@@ -1,0 +1,10 @@
+# Provenance for content copied from upstream. Maintained by
+# .github/workflows/sync-upstream-adventure.yaml — do not edit by hand.
+upstream: https://github.com/off-on-dev/open-source-challenges
+entries:
+  dead-reckoning:
+    sha: 8195c56c347f940a4f40c9940bdd8b79c1cf3712
+    synced_at: 2026-08-10
+  lib:
+    sha: 8195c56c347f940a4f40c9940bdd8b79c1cf3712
+    synced_at: 2026-08-10

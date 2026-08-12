@@ -1,0 +1,142 @@
+name: Sync adventure from upstream
+
+# Copies one adventure plus the shared lib/ from off-on-dev/open-source-challenges
+# and opens a PR. Content is copied verbatim: the only change is one added key per
+# devcontainer.json, for Dynatrace usage tracking.
+#
+# Only adventures with an unnumbered slug are supported. The legacy numbered ones
+# (01-* .. 05-*) use a different docs layout — see .github/scripts/sync-adventure.sh
+# for the reasoning, and README.md for how to run this.
+
+on:
+  workflow_dispatch:
+    inputs:
+      adventure:
+        description: "Upstream adventure slug, e.g. dead-reckoning"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  UPSTREAM_REPO: off-on-dev/open-source-challenges
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out this repo
+        uses: actions/checkout@v4
+
+      - name: Clone upstream at main
+        run: |
+          git clone --depth 1 "https://github.com/${UPSTREAM_REPO}.git" "${RUNNER_TEMP}/upstream"
+
+      - name: Sync adventure
+        id: sync
+        # Passed through the environment rather than interpolated into the script,
+        # so a crafted input cannot inject shell.
+        env:
+          ADVENTURE: ${{ inputs.adventure }}
+        run: |
+          chmod +x .github/scripts/sync-adventure.sh
+          .github/scripts/sync-adventure.sh "$ADVENTURE" "${RUNNER_TEMP}/upstream" .
+
+      - name: Check for changes
+        id: diff
+        run: |
+          if [[ -z "$(git status --porcelain)" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git status --short
+          fi
+
+      - name: Already in sync
+        if: steps.diff.outputs.changed == 'false'
+        env:
+          ADVENTURE: ${{ inputs.adventure }}
+          UPSTREAM_SHA: ${{ steps.sync.outputs.upstream_sha }}
+        run: |
+          echo "✅ '$ADVENTURE' is already in sync with upstream ${UPSTREAM_SHA:0:8} — nothing to do."
+
+      - name: Commit and push
+        if: steps.diff.outputs.changed == 'true'
+        id: push
+        env:
+          ADVENTURE: ${{ inputs.adventure }}
+          UPSTREAM_SHA: ${{ steps.sync.outputs.upstream_sha }}
+        run: |
+          branch="sync/${ADVENTURE}"
+          echo "branch=${branch}" >> "$GITHUB_OUTPUT"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git switch -c "$branch"
+          git add -A
+          git commit -m "chore: sync ${ADVENTURE} from upstream ${UPSTREAM_SHA:0:8}"
+
+          # Force-pushed so re-running replaces the branch rather than stacking
+          # commits on a stale sync.
+          git push --force origin "HEAD:refs/heads/${branch}"
+
+      - name: Open or update PR
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ADVENTURE: ${{ inputs.adventure }}
+          BRANCH: ${{ steps.push.outputs.branch }}
+          UPSTREAM_SHA: ${{ steps.sync.outputs.upstream_sha }}
+          PREVIOUS_SHA: ${{ steps.sync.outputs.previous_sha }}
+          DISPLAY_NAME: ${{ steps.sync.outputs.display_name }}
+          DEVCONTAINERS: ${{ steps.sync.outputs.devcontainers }}
+        run: |
+          upstream_url="https://github.com/${UPSTREAM_REPO}"
+          if [[ -n "$PREVIOUS_SHA" ]]; then
+            range_line="Changes since last sync: ${upstream_url}/compare/${PREVIOUS_SHA}...${UPSTREAM_SHA}"
+          else
+            range_line="First sync of this adventure. Upstream tree: ${upstream_url}/tree/${UPSTREAM_SHA}"
+          fi
+
+          {
+            echo "Synced \`${ADVENTURE}\` (${DISPLAY_NAME}) from [\`${UPSTREAM_REPO}\`](${upstream_url}) at \`${UPSTREAM_SHA}\`."
+            echo
+            echo "$range_line"
+            echo
+            echo "## Paths replaced"
+            echo
+            echo "- \`adventures/${ADVENTURE}/\`"
+            for dc in $DEVCONTAINERS; do
+              echo "- \`.devcontainer/${dc}/\`"
+            done
+            echo "- \`lib/\` (shared)"
+            echo
+            echo "## Transform applied"
+            echo
+            echo "Only the per-level \`devcontainer.json\` files were modified, and only to set"
+            echo "\`remoteEnv.OFFON_EXTERNAL_SOURCE\` to \`dynatrace-community\`. Everything else is"
+            echo "byte-for-byte upstream."
+            echo
+            echo "## Review notes"
+            echo
+            echo "⚠️ **Check the \`lib/\` diff.** \`lib/\` is shared by every adventure, so changes here"
+            echo "can affect adventures other than this one — including ones already live. Confirm that"
+            echo "helpers used by other adventures' \`verify.sh\` and \`post-create.sh\` still exist with"
+            echo "compatible signatures."
+            echo
+            echo "Content fixes belong upstream, not in this repo — see \`README.md\`."
+          } > "${RUNNER_TEMP}/pr-body.md"
+
+          title="chore: sync ${ADVENTURE} from upstream"
+          existing=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+
+          if [[ -n "$existing" ]]; then
+            gh pr edit "$existing" --title "$title" --body-file "${RUNNER_TEMP}/pr-body.md"
+            echo "🔁 Updated existing PR #${existing}"
+          else
+            gh pr create --base "${GITHUB_REF_NAME}" --head "$BRANCH" \
+              --title "$title" --body-file "${RUNNER_TEMP}/pr-body.md"
+          fi

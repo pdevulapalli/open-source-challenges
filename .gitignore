@@ -1,1 +1,4 @@
 .idea
+
+# Per-Codespace session ID, generated at the repo root by lib/scripts/tracker.sh
+.offon-session-id
