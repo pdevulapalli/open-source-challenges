@@ -62,6 +62,10 @@ spec:
           title: Owning Squadron
           type: string
           description: The squadron responsible for the vessel
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: [Group]
         system:
           title: Fleet
           type: string
@@ -110,6 +114,8 @@ spec:
       name: File in the archives
       action: publish:gitea
       input:
+        #Adding repoUrl to publish
+        repoUrl: ${{ parameters.repoUrl }} 
         description: ${{ parameters.description }}
         defaultBranch: main
 
@@ -132,4 +138,7 @@ spec:
         url: ${{ steps['publish'].output.remoteUrl }}
       - title: Open in registry
         icon: catalog
-        entityRef: ${{ todo }}
+        #entityRef: ${{ todo }}
+        entityRef: ${{ steps['register'].output.entityRef }}
+
+        
