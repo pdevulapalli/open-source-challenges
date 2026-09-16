@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: echo-prod
+
+resources:
+  - ../../base
+
+patches:
+  # Production: Higher replica count for stability
+  - target:
+      kind: Rollout
+      name: echo-server
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 4

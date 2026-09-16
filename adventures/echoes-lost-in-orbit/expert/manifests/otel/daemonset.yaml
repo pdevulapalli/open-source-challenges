@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: collector
+  labels:
+    app: collector
+spec:
+  selector:
+    matchLabels:
+      app: collector
+  template:
+    metadata:
+      labels:
+        app: collector
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8889"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: collector
+          image: otel/opentelemetry-collector-contrib:0.142.0
+          args:
+            - --config=/conf/collector-config.yaml
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              containerPort: 4318
+              protocol: TCP
+            - name: prometheus
+              containerPort: 8889
+              protocol: TCP
+            - name: health
+              containerPort: 13133
+              protocol: TCP
+          env:
+            - name: GOMEMLIMIT
+              value: "128MiB"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 3
+          volumeMounts:
+            - name: collector-config
+              mountPath: /conf
+      volumes:
+        - name: collector-config
+          configMap:
+            name: collector-config
+

@@ -19,8 +19,8 @@ Run the **Sync adventure from upstream** workflow from the Actions tab and give 
 opens a PR, so maintainers pick exactly which challenges get synced rather than pulling in
 everything automatically.
 
-Content is copied **verbatim** — paths keep their upstream names, and the only change to any copied
-file is one added key per level's `devcontainer.json`:
+Content is copied **verbatim** apart from the numbered-slug rename below. Every level's
+`devcontainer.json` also gets one added key:
 
 ```json
 "remoteEnv": { "OFFON_EXTERNAL_SOURCE": "dynatrace-community" }
@@ -33,14 +33,25 @@ links the compare range since the last sync.
 
 Notes for reviewers and maintainers:
 
-- **Only unnumbered adventure slugs can be synced.** Upstream's older numbered adventures
-  (`01-*` … `05-*`) use a `docs/*.md` layout instead of the current structured `docs/*.yaml`, so the
-  workflow rejects them. Re-running for an already-synced adventure is safe and idempotent.
-- **`adventures/lex-imperfecta/` is live and hand-copied.** It predates this workflow and uses a
-  prefix-stripped layout. Leave it alone; the numbered-slug restriction means the workflow can't
-  reach it.
+- **Numbered upstream slugs lose the number.** `01-echoes-lost-in-orbit` lands as
+  `adventures/echoes-lost-in-orbit/`, and its levels are relabelled from `Adventure 01 | 🟢 Beginner
+  (…)` to `🛰️ Echoes Lost in Orbit | 🟢 Beginner (…)`. Re-running a sync is safe and idempotent.
+- **On those PRs, check the rewritten paths.** The rename repoints `adventures/<slug>` and
+  `.devcontainer/<slug>_*` references inside the copied files. They feed ArgoCD and `post-start.sh`,
+  so a miss breaks the challenge. Community thread URLs keep the number.
 - **Check the `lib/` diff on every sync PR.** `lib/` is shared by all adventures, so syncing one can
   change behaviour for the others, including live ones.
+- **`adventures/lex-imperfecta/` is live and hand-copied.** Syncing `05-lex-imperfecta` now
+  overwrites it rather than being rejected. That should work — it even fixes a level name the
+  hand-copy missed — but it is untested, so review that PR closely.
+- **`adventures/echoes-lost-in-orbit/` deliberately diverges from upstream.** It was authored
+  against the old challenge structure — `smoke-test.sh`, no `Makefile`, and a "Verify Adventure"
+  GitHub Actions step that does not exist in this repo, so a solved level never produced a
+  certificate. It has been moved onto the current structure (`verify.sh` ending in
+  `check_submission_readiness`), and `docs/` was dropped. A sync `rm -rf`s both
+  `adventures/<slug>/` and `.devcontainer/<slug>_*` before copying, so re-syncing
+  `01-echoes-lost-in-orbit` reverts all of it and puts the dead end back. Fix upstream first, or
+  re-apply this divergence on top of that PR before merging.
 
 ## Attribution
 

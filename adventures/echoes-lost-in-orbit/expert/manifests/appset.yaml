@@ -1,0 +1,36 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: hyperspace-operations-and-transport
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: __REPO_URL__
+        revision: HEAD
+        directories:
+          - path: adventures/echoes-lost-in-orbit/expert/manifests/*
+          - path: adventures/echoes-lost-in-orbit/expert/manifests/appset.yaml # Ignore this file itself
+            exclude: true
+  template:
+    metadata:
+      name: '{{ path.basename }}'
+      labels:
+        app.kubernetes.io/managed-by: argocd
+    spec:
+      project: default
+      source:
+        repoURL: __REPO_URL__
+        targetRevision: HEAD
+        path: '{{ path }}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ path.basename }}'
+      syncPolicy:
+        automated:
+          enabled: true
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+

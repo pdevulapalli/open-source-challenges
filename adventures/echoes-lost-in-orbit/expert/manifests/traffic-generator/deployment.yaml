@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traffic-generator
+  labels:
+    app: traffic-generator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: traffic-generator
+  template:
+    metadata:
+      labels:
+        app: traffic-generator
+    spec:
+      containers:
+        - name: traffic-generator
+          image: curlimages/curl:8.11.1
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Starting HotROD traffic generator..."
+              echo "Waiting 10s for HotROD to be ready..."
+              sleep 10
+              
+              echo "Generating traffic to HotROD frontend..."
+              while true; do
+                # Pick a random endpoint (using case statement for POSIX compatibility)
+                RAND=$(($(date +%s) % 5))
+                case $RAND in
+                  0) ENDPOINT="/" ;;
+                  1) ENDPOINT="/dispatch?customer=123" ;;
+                  2) ENDPOINT="/dispatch?customer=567" ;;
+                  3) ENDPOINT="/dispatch?customer=392" ;;
+                  4) ENDPOINT="/dispatch?customer=731" ;;
+                esac
+                
+                # Make request with some realistic headers
+                curl -s -o /dev/null -w "Request successful | Status: %{http_code} | Time: %{time_total}s | Endpoint: ${ENDPOINT}\n" \
+                  -H "User-Agent: TrafficGenerator/1.0" \
+                  "http://hotrod.hotrod.svc.cluster.local:8080${ENDPOINT}" \
+                  || echo "Request failed to ${ENDPOINT}"
+                
+                sleep 0.5
+              done
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 20m
+              memory: 32Mi
+

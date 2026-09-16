@@ -5,6 +5,10 @@ entries:
   dead-reckoning:
     sha: 8195c56c347f940a4f40c9940bdd8b79c1cf3712
     synced_at: 2026-08-10
+  echoes-lost-in-orbit:
+    sha: 526e6679b24276469ceaf7aa705d0c0709950ea0
+    synced_at: 2026-09-08
+    upstream_slug: 01-echoes-lost-in-orbit
   lib:
-    sha: 8195c56c347f940a4f40c9940bdd8b79c1cf3712
-    synced_at: 2026-08-10
+    sha: 526e6679b24276469ceaf7aa705d0c0709950ea0
+    synced_at: 2026-09-08

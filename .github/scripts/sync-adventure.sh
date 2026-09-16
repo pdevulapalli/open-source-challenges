@@ -2,12 +2,12 @@
 # sync-adventure.sh - Copy one adventure plus the shared lib/ from the upstream
 # OffOn repo into this repo, adding the Dynatrace tracking source.
 #
-# Paths are kept verbatim: adventures/<slug>/ and .devcontainer/<slug>_*/ land at
-# the same paths they occupy upstream. Nothing is renamed, so no copied file
-# needs its contents rewritten except one key per devcontainer.json.
-#
-# Only adventures whose slug has no NN- number prefix are supported — see
-# validate_slug for why.
+# Upstream numbers its older adventures (01-echoes-lost-in-orbit) and sometimes
+# their level segments too (05-lex-imperfecta_01-beginner). This repo publishes
+# them unprefixed, so those NN- prefixes are stripped on the way in and the
+# in-file references that point at the old location are rewritten to match — see
+# strip_prefix and rewrite_paths. Content is otherwise copied verbatim: the only
+# other change is one key per devcontainer.json.
 #
 # Usage: sync-adventure.sh <adventure-slug> <upstream-checkout-dir> <repo-root>
 
@@ -22,10 +22,21 @@ if [[ $# -ne 3 ]]; then
   exit 2
 fi
 
+# Upstream still numbers its older adventures, and sometimes the level segment
+# of their devcontainer dirs. This repo publishes them unprefixed — which is what
+# the hand-copied lex-imperfecta already does — so strip a leading NN-.
+strip_prefix() {
+  printf '%s' "$1" | sed -E 's/^[0-9]+-//'
+}
+
 SLUG=$1
 UPSTREAM=$(cd "$2" && pwd)
 REPO=$(cd "$3" && pwd)
 MANIFEST="$REPO/$MANIFEST_NAME"
+
+# Where this adventure lands in this repo. Differs from SLUG only for the legacy
+# numbered upstream slugs.
+LOCAL_SLUG=$(strip_prefix "$SLUG")
 
 die() {
   echo "❌ $*" >&2
@@ -35,28 +46,27 @@ die() {
 # -----------------------------------------------------------------------------
 # Validate the slug against what upstream actually publishes.
 #
-# Numbered slugs (01-echoes-lost-in-orbit ... 05-lex-imperfecta) are rejected on
-# purpose. They predate upstream's move to structured docs/*.yaml and still use
-# docs/*.md, so they do not share a format with anything this script is built
-# for. 01-echoes-lost-in-orbit additionally ships docs/solutions/ with full
-# answers. Unnumbered slugs are upstream's current convention and the only ones
-# supported here.
+# Numbered slugs are accepted and land here with the prefix stripped. They
+# predate upstream's move to structured docs/*.yaml and mostly still use
+# docs/*.md, which only affects the display name read for the PR body.
+# 01-echoes-lost-in-orbit additionally ships docs/solutions/ with full answers —
+# copied like everything else, but warned about, so the operator decides before
+# merging.
 # -----------------------------------------------------------------------------
 validate_slug() {
   [[ -d "$UPSTREAM/adventures" ]] || die "No adventures/ directory in upstream checkout $UPSTREAM"
-
-  if [[ "$SLUG" =~ ^[0-9]+- ]]; then
-    die "'$SLUG' is a numbered adventure. Those use the older docs/*.md layout and are not supported — only unnumbered slugs can be synced."
-  fi
 
   local valid=() d name
   for d in "$UPSTREAM/adventures"/*/; do
     name=$(basename "$d")
     # planned/ holds unpublished drafts, not an adventure.
     [[ "$name" == "planned" ]] && continue
-    # Skip the legacy numbered adventures, as above.
-    [[ "$name" =~ ^[0-9]+- ]] && continue
     valid+=("$name")
+    # Two upstream slugs differing only by number prefix would land on the same
+    # local path and silently overwrite each other.
+    if [[ "$name" != "$SLUG" && "$(strip_prefix "$name")" == "$LOCAL_SLUG" ]]; then
+      die "'$SLUG' and '$name' both map to adventures/$LOCAL_SLUG. Sync one of them by hand."
+    fi
   done
 
   [[ ${#valid[@]} -gt 0 ]] || die "Upstream has no unnumbered adventures to sync."
@@ -77,13 +87,21 @@ validate_slug() {
 # Locate the adventure's devcontainer directories. Upstream is inconsistent
 # about number prefixes on the level segment (dead-reckoning_beginner vs
 # 05-lex-imperfecta_01-beginner), so glob rather than assume a naming scheme.
+#
+# DEVCONTAINER_DIRS holds the upstream names, LOCAL_DEVCONTAINER_DIRS the names
+# they take here with the prefix stripped from both segments. The two arrays stay
+# index-aligned; rewrite_paths pairs them up.
 # -----------------------------------------------------------------------------
 find_devcontainers() {
-  local d
+  local d name level
   DEVCONTAINER_DIRS=()
+  LOCAL_DEVCONTAINER_DIRS=()
   for d in "$UPSTREAM/.devcontainer/${SLUG}"_*/; do
     [[ -d "$d" ]] || continue
-    DEVCONTAINER_DIRS+=("$(basename "${d%/}")")
+    name=$(basename "${d%/}")
+    level=$(strip_prefix "${name#"${SLUG}_"}")
+    DEVCONTAINER_DIRS+=("$name")
+    LOCAL_DEVCONTAINER_DIRS+=("${LOCAL_SLUG}_${level}")
   done
 
   if [[ ${#DEVCONTAINER_DIRS[@]} -eq 0 ]]; then
@@ -104,23 +122,128 @@ replace_dir() {
 }
 
 # -----------------------------------------------------------------------------
+# Repoint in-file references at the stripped paths. Only the two path prefixes
+# are rewritten — "adventures/<upstream-slug>" and ".devcontainer/<upstream-dir>"
+# — never the bare slug, because the docs link to community threads whose URLs
+# embed it (.../t/adventure-01-echoes-lost-in-orbit-easy-broken-echoes/117) and
+# those have to keep pointing where they point.
+#
+# This is not cosmetic. Each level's manifests/appset.yaml feeds those paths to
+# ArgoCD's git generator, and post-start.sh sed/kubectl/git-adds the same paths;
+# left unrewritten they address a directory that does not exist here. The
+# hand-copied lex-imperfecta shipped with exactly that bug — see commit 81bc383.
+#
+# Substitution is bytes-level, so images and anything else binary pass through
+# untouched rather than needing an encoding guess.
+# -----------------------------------------------------------------------------
+rewrite_paths() {
+  [[ "$LOCAL_SLUG" != "$SLUG" ]] || return 0
+
+  local -a pairs=("adventures/$SLUG" "adventures/$LOCAL_SLUG")
+  local -a roots=("$REPO/adventures/$LOCAL_SLUG")
+  local i
+
+  for i in "${!DEVCONTAINER_DIRS[@]}"; do
+    pairs+=(".devcontainer/${DEVCONTAINER_DIRS[$i]}" ".devcontainer/${LOCAL_DEVCONTAINER_DIRS[$i]}")
+    roots+=("$REPO/.devcontainer/${LOCAL_DEVCONTAINER_DIRS[$i]}")
+  done
+
+  python3 - "${#pairs[@]}" "${pairs[@]}" "${roots[@]}" <<'PY'
+import os
+import sys
+
+npairs = int(sys.argv[1])
+args = sys.argv[2:]
+pairs = [(args[i].encode(), args[i + 1].encode()) for i in range(0, npairs, 2)]
+
+changed = 0
+for root in args[npairs:]:
+    for dirpath, _, filenames in os.walk(root):
+        for filename in filenames:
+            path = os.path.join(dirpath, filename)
+            with open(path, "rb") as fh:
+                original = fh.read()
+            data = original
+            for old, new in pairs:
+                data = data.replace(old, new)
+            if data != original:
+                with open(path, "wb") as fh:
+                    fh.write(data)
+                changed += 1
+
+print(f"   rewrote path references in {changed} file(s)")
+PY
+}
+
+# -----------------------------------------------------------------------------
 # The adventure's display name, from the structured docs. Not used to rewrite
 # anything — it goes in the PR body — but its absence means the adventure is not
-# in the docs/*.yaml format this script expects, which is worth failing on.
-# index.yaml is flat and the key sits at column 0, so grep -m1 is sufficient.
+# in the docs/*.yaml format this script expects. The legacy numbered adventures
+# are not, so fall back to the first H1 of docs/index.md rather than failing a
+# whole sync over a string that only decorates the PR body.
 # -----------------------------------------------------------------------------
 read_display_name() {
-  local index="$REPO/adventures/$SLUG/docs/index.yaml"
-  [[ -f "$index" ]] || die "Missing adventures/$SLUG/docs/index.yaml. This adventure is not in the expected structured-docs format."
+  local docs="$REPO/adventures/$LOCAL_SLUG/docs"
+  local name=""
 
-  local name
-  name=$(grep -m1 '^name:' "$index" | sed -e 's/^name:[[:space:]]*//' \
-    -e 's/[[:space:]]*$//' \
-    -e 's/^"\(.*\)"$/\1/' \
-    -e "s/^'\(.*\)'\$/\1/")
+  if [[ -f "$docs/index.yaml" ]]; then
+    # index.yaml is flat and the key sits at column 0, so grep -m1 is sufficient.
+    name=$(grep -m1 '^name:' "$docs/index.yaml" | sed -e 's/^name:[[:space:]]*//' \
+      -e 's/[[:space:]]*$//' \
+      -e 's/^"\(.*\)"$/\1/' \
+      -e "s/^'\(.*\)'\$/\1/")
+  elif [[ -f "$docs/index.md" ]]; then
+    # The legacy H1s read "# 🛰️ Adventure 01: Echoes Lost in Orbit". Drop the
+    # leading emoji and the "Adventure NN:" so this yields a bare adventure name
+    # ("Echoes Lost in Orbit"), the same shape index.yaml's name: gives.
+    name=$(grep -m1 '^# ' "$docs/index.md" \
+      | sed -e 's/^#[[:space:]]*//' \
+        -e 's/^[^[:alnum:]]*//' \
+        -e 's/^Adventure[[:space:]][0-9][0-9]*:*[[:space:]]*//' \
+        -e 's/[[:space:]]*$//')
+  else
+    die "adventures/$LOCAL_SLUG/docs/ has neither index.yaml nor index.md — this adventure has no recognisable docs."
+  fi
 
-  [[ -n "$name" ]] || die "Could not read a top-level 'name:' from adventures/$SLUG/docs/index.yaml"
+  [[ -n "$name" ]] || die "Could not read a display name from adventures/$LOCAL_SLUG/docs/"
   printf '%s' "$name"
+}
+
+# -----------------------------------------------------------------------------
+# The adventure's emoji, if its docs H1 carries one ("# 🛰️ Adventure 01: …").
+# Needed only for adventure 01, whose devcontainer labels are the one set with no
+# emoji of their own; 02-05 already carry theirs.
+# -----------------------------------------------------------------------------
+read_display_emoji() {
+  local index="$REPO/adventures/$LOCAL_SLUG/docs/index.md"
+  [[ -f "$index" ]] || return 0
+  grep -m1 '^# ' "$index" | sed -e 's/^#[[:space:]]*//' -e 's/[[:alnum:]].*$//' -e 's/[[:space:]]*$//'
+}
+
+# -----------------------------------------------------------------------------
+# Swap the "Adventure NN" token in a level label for the adventure's name,
+# keeping everything else upstream wrote:
+#
+#   "⚖️ Adventure 05 | 🟢 Beginner (The Twelve Tables)"
+#     -> "⚖️ Lex Imperfecta | 🟢 Beginner (The Twelve Tables)"
+#   "Adventure 01 | 🟢 Beginner (Broken Echoes)"
+#     -> "🛰️ Echoes Lost in Orbit | 🟢 Beginner (Broken Echoes)"
+#
+# The emoji is prepended only when the label did not already start with one,
+# which is adventure 01 alone. The swap is a literal bash replacement rather than
+# sed, so a name containing & or / cannot corrupt the result.
+# -----------------------------------------------------------------------------
+relabel() {
+  local name=$1 display=$2 emoji=$3 out
+
+  [[ "$name" =~ (Adventure[[:space:]]+[0-9]+) ]] || { printf '%s' "$name"; return 0; }
+
+  out=${name/"${BASH_REMATCH[1]}"/$display}
+  if [[ "$out" == "$display"* && -n "$emoji" ]]; then
+    out="$emoji $out"
+  fi
+
+  printf '%s' "$out"
 }
 
 # -----------------------------------------------------------------------------
@@ -129,27 +252,46 @@ read_display_name() {
 # is the whole reason this repo exists. Merged rather than assigned, in case
 # upstream later adds remoteEnv keys of its own.
 #
-# The devcontainer "name" is deliberately left alone: unnumbered adventures
-# already label their levels with the adventure name (e.g. "🧭 Dead Reckoning |
-# 🟢 Beginner"), so there is nothing to fix. Only the legacy numbered adventures
-# say "Adventure NN", and those cannot be synced.
+# The devcontainer "name" is relabelled for renamed adventures only. Unnumbered
+# ones already name themselves ("🧭 Dead Reckoning | 🟢 Beginner (Laying the
+# Keel)") and are left alone. The numbered ones say "⚖️ Adventure 05 | 🟢
+# Beginner (The Twelve Tables)", which would still read "Adventure 05" here after
+# the path prefix is stripped, so the "Adventure NN" token — and only that token
+# — is swapped for the adventure's display name. The emoji and the level segment
+# after the pipe are upstream's and stay untouched.
+#
+# This reproduces the live hand-copied lex-imperfecta names exactly, including
+# the one its hand-edit missed: .devcontainer/lex-imperfecta_intermediate still
+# says "Adventure 05" today.
 #
 # Every upstream devcontainer.json is strict JSON (no comments, no trailing
 # commas), so jq round-trips them safely. jq does decode \uXXXX escapes to
 # literal UTF-8, so emoji in some files change bytes without changing meaning.
 # -----------------------------------------------------------------------------
 apply_transform() {
-  local dir f tmp
-  for dir in "${DEVCONTAINER_DIRS[@]}"; do
+  local display=$1 emoji=$2
+  local dir f tmp before after
+
+  for dir in "${LOCAL_DEVCONTAINER_DIRS[@]}"; do
     f="$REPO/.devcontainer/$dir/devcontainer.json"
     [[ -f "$f" ]] || die "Expected $f after copying, but it is missing."
 
+    before=$(jq -r '.name // ""' "$f")
+    after=$before
+    # Only the renamed numbered adventures carry an "Adventure NN" label.
+    if [[ "$LOCAL_SLUG" != "$SLUG" && -n "$before" ]]; then
+      after=$(relabel "$before" "$display" "$emoji")
+    fi
+
     tmp=$(mktemp)
-    jq --indent 2 --arg src "$EXTERNAL_SOURCE" '
+    jq --indent 2 --arg src "$EXTERNAL_SOURCE" --arg name "$after" '
       .remoteEnv = ((.remoteEnv // {}) + {"OFFON_EXTERNAL_SOURCE": $src})
+      | if $name != "" then .name = $name else . end
     ' "$f" >"$tmp"
     mv "$tmp" "$f"
+
     echo "   transformed .devcontainer/$dir/devcontainer.json"
+    [[ "$before" == "$after" ]] || echo "     relabelled: $before → $after"
   done
 }
 
@@ -159,8 +301,8 @@ apply_transform() {
 # should know they are in the PR and decide.
 # -----------------------------------------------------------------------------
 warn_on_solutions() {
-  if [[ -d "$REPO/adventures/$SLUG/docs/solutions" ]]; then
-    echo "⚠️  adventures/$SLUG/docs/solutions/ was copied — it contains level solutions." >&2
+  if [[ -d "$REPO/adventures/$LOCAL_SLUG/docs/solutions" ]]; then
+    echo "⚠️  adventures/$LOCAL_SLUG/docs/solutions/ was copied — it contains level solutions." >&2
     echo "    Confirm this is intended before merging." >&2
   fi
 }
@@ -172,7 +314,7 @@ warn_on_solutions() {
 # -----------------------------------------------------------------------------
 read_previous_sha() {
   [[ -f "$MANIFEST" ]] || return 0
-  awk -v key="$SLUG" '
+  awk -v key="$LOCAL_SLUG" '
     $0 ~ "^  " key ":$" { found = 1; next }
     found && $1 == "sha:" { print $2; exit }
     found && $0 ~ /^  [^ ]/ { exit }
@@ -183,7 +325,7 @@ update_manifest() {
   local sha=$1 today
   today=$(date -u +%Y-%m-%d)
 
-  MANIFEST="$MANIFEST" SLUG="$SLUG" SHA="$sha" TODAY="$today" \
+  MANIFEST="$MANIFEST" SLUG="$SLUG" LOCAL_SLUG="$LOCAL_SLUG" SHA="$sha" TODAY="$today" \
     UPSTREAM_REPO_URL="$UPSTREAM_REPO_URL" python3 - <<'PY'
 import os
 import re
@@ -203,14 +345,19 @@ try:
                 current = key.group(1)
                 entries[current] = {}
                 continue
-            field = re.match(r"^    (sha|synced_at):\s*(\S+)\s*$", line)
+            field = re.match(r"^    (sha|synced_at|upstream_slug):\s*(\S+)\s*$", line)
             if field and current:
                 entries[current][field.group(1)] = field.group(2)
 except FileNotFoundError:
     pass
 
-for key in (os.environ["SLUG"], "lib"):
+for key in (os.environ["LOCAL_SLUG"], "lib"):
     entries[key] = {"sha": os.environ["SHA"], "synced_at": os.environ["TODAY"]}
+
+# A renamed adventure records where it came from, so a local path stays
+# traceable to the upstream slug it was copied from.
+if os.environ["SLUG"] != os.environ["LOCAL_SLUG"]:
+    entries[os.environ["LOCAL_SLUG"]]["upstream_slug"] = os.environ["SLUG"]
 
 lines = [
     "# Provenance for content copied from upstream. Maintained by",
@@ -225,6 +372,8 @@ for key in sorted(entries):
     lines.append(f"  {key}:")
     lines.append(f"    sha: {data['sha']}")
     lines.append(f"    synced_at: {data.get('synced_at', 'unknown')}")
+    if data.get("upstream_slug"):
+        lines.append(f"    upstream_slug: {data['upstream_slug']}")
 
 with open(manifest, "w", encoding="utf-8") as fh:
     fh.write("\n".join(lines) + "\n")
@@ -244,15 +393,17 @@ main() {
   previous_sha=$(read_previous_sha)
 
   echo "🔄 Syncing '$SLUG' from upstream ${upstream_sha:0:8}"
-  echo "   devcontainers: ${DEVCONTAINER_DIRS[*]}"
+  [[ "$LOCAL_SLUG" == "$SLUG" ]] || echo "   number prefix stripped — landing as '$LOCAL_SLUG'"
+  echo "   devcontainers: ${LOCAL_DEVCONTAINER_DIRS[*]}"
 
-  replace_dir "$UPSTREAM/adventures/$SLUG" "$REPO/adventures/$SLUG"
-  echo "   copied adventures/$SLUG/"
+  replace_dir "$UPSTREAM/adventures/$SLUG" "$REPO/adventures/$LOCAL_SLUG"
+  echo "   copied adventures/$LOCAL_SLUG/"
 
-  local dir
-  for dir in "${DEVCONTAINER_DIRS[@]}"; do
-    replace_dir "$UPSTREAM/.devcontainer/$dir" "$REPO/.devcontainer/$dir"
-    echo "   copied .devcontainer/$dir/"
+  local i
+  for i in "${!DEVCONTAINER_DIRS[@]}"; do
+    replace_dir "$UPSTREAM/.devcontainer/${DEVCONTAINER_DIRS[$i]}" \
+      "$REPO/.devcontainer/${LOCAL_DEVCONTAINER_DIRS[$i]}"
+    echo "   copied .devcontainer/${LOCAL_DEVCONTAINER_DIRS[$i]}/"
   done
 
   # lib/ is shared by every adventure, so this can change behaviour for
@@ -261,9 +412,11 @@ main() {
   replace_dir "$UPSTREAM/lib" "$REPO/lib"
   echo "   copied lib/"
 
+  rewrite_paths
+
   display_name=$(read_display_name)
   echo "   adventure: $display_name"
-  apply_transform
+  apply_transform "$display_name" "$(read_display_emoji)"
   warn_on_solutions
 
   update_manifest "$upstream_sha"
@@ -274,7 +427,8 @@ main() {
       echo "upstream_sha=$upstream_sha"
       echo "previous_sha=$previous_sha"
       echo "display_name=$display_name"
-      echo "devcontainers=${DEVCONTAINER_DIRS[*]}"
+      echo "local_slug=$LOCAL_SLUG"
+      echo "devcontainers=${LOCAL_DEVCONTAINER_DIRS[*]}"
     } >>"$GITHUB_OUTPUT"
   fi
 

@@ -4,15 +4,15 @@ name: Sync adventure from upstream
 # and opens a PR. Content is copied verbatim: the only change is one added key per
 # devcontainer.json, for Dynatrace usage tracking.
 #
-# Only adventures with an unnumbered slug are supported. The legacy numbered ones
-# (01-* .. 05-*) use a different docs layout — see .github/scripts/sync-adventure.sh
-# for the reasoning, and README.md for how to run this.
+# Upstream's legacy numbered slugs (01-* .. 05-*) are accepted and land here with
+# the NN- prefix stripped, path references inside the copied files repointed to
+# match — see .github/scripts/sync-adventure.sh, and README.md for how to run this.
 
 on:
   workflow_dispatch:
     inputs:
       adventure:
-        description: "Upstream adventure slug, e.g. dead-reckoning"
+        description: "Upstream adventure slug, e.g. dead-reckoning or 01-echoes-lost-in-orbit"
         required: true
         type: string
 
@@ -67,9 +67,10 @@ jobs:
         id: push
         env:
           ADVENTURE: ${{ inputs.adventure }}
+          LOCAL_SLUG: ${{ steps.sync.outputs.local_slug }}
           UPSTREAM_SHA: ${{ steps.sync.outputs.upstream_sha }}
         run: |
-          branch="sync/${ADVENTURE}"
+          branch="sync/${LOCAL_SLUG}"
           echo "branch=${branch}" >> "$GITHUB_OUTPUT"
 
           git config user.name "github-actions[bot]"
@@ -77,7 +78,7 @@ jobs:
 
           git switch -c "$branch"
           git add -A
-          git commit -m "chore: sync ${ADVENTURE} from upstream ${UPSTREAM_SHA:0:8}"
+          git commit -m "chore: sync ${LOCAL_SLUG} from upstream ${UPSTREAM_SHA:0:8}"
 
           # Force-pushed so re-running replaces the branch rather than stacking
           # commits on a stale sync.
@@ -88,6 +89,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ADVENTURE: ${{ inputs.adventure }}
+          LOCAL_SLUG: ${{ steps.sync.outputs.local_slug }}
           BRANCH: ${{ steps.push.outputs.branch }}
           UPSTREAM_SHA: ${{ steps.sync.outputs.upstream_sha }}
           PREVIOUS_SHA: ${{ steps.sync.outputs.previous_sha }}
@@ -105,10 +107,16 @@ jobs:
             echo "Synced \`${ADVENTURE}\` (${DISPLAY_NAME}) from [\`${UPSTREAM_REPO}\`](${upstream_url}) at \`${UPSTREAM_SHA}\`."
             echo
             echo "$range_line"
+            if [[ "$LOCAL_SLUG" != "$ADVENTURE" ]]; then
+              echo
+              echo "⚠️ **Renamed on the way in.** \`${ADVENTURE}\` is one of upstream's numbered slugs, so it"
+              echo "lands here as \`${LOCAL_SLUG}\` — matching the hand-copied \`lex-imperfecta\`, which is also"
+              echo "published unprefixed."
+            fi
             echo
             echo "## Paths replaced"
             echo
-            echo "- \`adventures/${ADVENTURE}/\`"
+            echo "- \`adventures/${LOCAL_SLUG}/\`"
             for dc in $DEVCONTAINERS; do
               echo "- \`.devcontainer/${dc}/\`"
             done
@@ -116,9 +124,24 @@ jobs:
             echo
             echo "## Transform applied"
             echo
-            echo "Only the per-level \`devcontainer.json\` files were modified, and only to set"
-            echo "\`remoteEnv.OFFON_EXTERNAL_SOURCE\` to \`dynatrace-community\`. Everything else is"
-            echo "byte-for-byte upstream."
+            echo "Every level's \`devcontainer.json\` has \`remoteEnv.OFFON_EXTERNAL_SOURCE\` set to"
+            echo "\`dynatrace-community\`."
+            if [[ "$LOCAL_SLUG" != "$ADVENTURE" ]]; then
+              echo
+              echo "Because this adventure was renamed, the \`adventures/${ADVENTURE}\` and"
+              echo "\`.devcontainer/${ADVENTURE}_*\` path references inside the copied files were repointed"
+              echo "at the new locations. Those paths are load-bearing: the ArgoCD ApplicationSets in each"
+              echo "level's \`manifests/appset.yaml\` and the \`sed\`/\`kubectl\` lines in \`post-start.sh\`"
+              echo "would otherwise address a directory that does not exist here."
+              echo
+              echo "Only those two path prefixes were touched. The bare slug is left alone wherever else it"
+              echo "appears — notably the community thread URLs in the docs, which keep the numbered form."
+              echo
+              echo "Each level's \`devcontainer.json\` \`name\` was also relabelled, swapping the \`Adventure NN\`"
+              echo "token for the adventure's name so the levels read like the unnumbered adventures do."
+            else
+              echo "Everything else is byte-for-byte upstream."
+            fi
             echo
             echo "## Review notes"
             echo
@@ -126,6 +149,11 @@ jobs:
             echo "can affect adventures other than this one — including ones already live. Confirm that"
             echo "helpers used by other adventures' \`verify.sh\` and \`post-create.sh\` still exist with"
             echo "compatible signatures."
+            if [[ "$LOCAL_SLUG" != "$ADVENTURE" ]]; then
+              echo
+              echo "⚠️ **Check the rename.** Confirm no \`${ADVENTURE}\` path reference survives, and that the"
+              echo "relabelled level names read correctly in the Codespaces picker."
+            fi
             echo
             echo "Content fixes belong upstream, not in this repo — see \`README.md\`."
           } > "${RUNNER_TEMP}/pr-body.md"

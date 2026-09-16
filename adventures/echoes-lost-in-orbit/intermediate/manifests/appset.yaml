@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: echo-server
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: __REPO_URL__
+        revision: HEAD
+        directories:
+          - path: adventures/echoes-lost-in-orbit/intermediate/manifests/overlays/*
+  template:
+    metadata:
+      name: echo-server-{{ path.basename}}
+      labels:
+        app.kubernetes.io/managed-by: argocd
+    spec:
+      project: default
+      source:
+        repoURL: __REPO_URL__
+        targetRevision: HEAD
+        path: adventures/echoes-lost-in-orbit/intermediate/manifests/overlays/{{ path.basename }}
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: echo-{{ path.basename }}
+      syncPolicy:
+        automated:
+          enabled: true
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

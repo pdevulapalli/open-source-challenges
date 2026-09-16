@@ -1,0 +1,71 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: hotrod
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: hotrod
+  template:
+    metadata:
+      labels:
+        app: hotrod
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: hotrod
+          image: jaegertracing/example-hotrod:1.75.0
+          imagePullPolicy: IfNotPresent
+          args: ["all"]
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://collector.otel.svc.cluster.local:4318"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_HASH
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['rollouts-pod-template-hash']
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "hotrod.pod.name=$(POD_NAME),hotrod.namespace=$(POD_NAMESPACE),hotrod.pod.hash=$(POD_HASH)"
+          ports:
+            - containerPort: 8080
+              name: frontend
+            - containerPort: 8081
+              name: customer
+            - containerPort: 8083
+              name: route
+          resources:
+            requests:
+              cpu: 100m
+              memory: 100M
+            limits:
+              cpu: 100m
+              memory: 100M
+  strategy:
+    canary:
+      steps:
+        - setWeight: 50
+        - analysis:
+            templates:
+              - templateName: hotrod-analysis
+            args:
+              - name: namespace
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.namespace
+              - name: canary-hash
+                valueFrom:
+                  podTemplateHashValue: Latest
+        - setWeight: 100

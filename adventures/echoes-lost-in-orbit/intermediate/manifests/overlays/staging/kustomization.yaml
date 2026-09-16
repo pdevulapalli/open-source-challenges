@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: echo-staging
+
+resources:
+  - ../../base
+
+patches:
+  # Staging: Lower replica count for faster rollouts
+  - target:
+      kind: Rollout
+      name: echo-server
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1

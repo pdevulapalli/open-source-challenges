@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: echo-server
+  template:
+    metadata:
+      labels:
+        app: echo-server
+    spec:
+      containers:
+        - name: echo-server
+          image: registry.k8s.io/e2e-test-images/echoserver:2.5
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi

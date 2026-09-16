@@ -1,0 +1,63 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: echo-server
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: echo-server
+  template:
+    metadata:
+      labels:
+        app: echo-server
+    spec:
+      containers:
+        - name: echo-server
+          image: stefanprodan/podinfo:6.8.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9898
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9898
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9898
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+  strategy:
+    canary:
+      steps:
+        - setWeight: 33
+        - analysis:
+            templates:
+              - templateName: echo-analysis
+            args:
+              - name: namespace
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.namespace
+        - setWeight: 66
+        - analysis:
+            templates:
+              - templateName: echo-analysis
+            args:
+              - name: namespace
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.namespace
+        - setWeight: 100

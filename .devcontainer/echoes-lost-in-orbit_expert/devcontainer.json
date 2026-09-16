@@ -1,0 +1,48 @@
+{
+  "name": "🛰️ Echoes Lost in Orbit | 🔴 Expert (Hyperspace Operations & Transport)",
+  "image": "mcr.microsoft.com/devcontainers/base:bullseye",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}/adventures/echoes-lost-in-orbit/expert",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "postCreateCommand": "bash /workspaces/${localWorkspaceFolderBasename}/.devcontainer/echoes-lost-in-orbit_expert/post-create.sh",
+  "postStartCommand": "bash /workspaces/${localWorkspaceFolderBasename}/.devcontainer/echoes-lost-in-orbit_expert/post-start.sh",
+  "customizations": {
+    "codespaces": {
+      "openFiles": [
+        "manifests/otel/config.yaml",
+        "manifests/hotrod/analysis-template.yaml"
+      ]
+    }
+  },
+  "forwardPorts": [
+    30100,
+    30101,
+    30102,
+    30103
+  ],
+  "portsAttributes": {
+    "30100": {
+      "label": "ArgoCD",
+      "onAutoForward": "notify"
+    },
+    "30101": {
+      "label": "Argo Rollouts Dashboard",
+      "onAutoForward": "notify"
+    },
+    "30102": {
+      "label": "Prometheus",
+      "onAutoForward": "notify"
+    },
+    "30103": {
+      "label": "Jaeger",
+      "onAutoForward": "notify"
+    }
+  },
+  "otherPortsAttributes": {
+    "onAutoForward": "ignore"
+  },
+  "remoteEnv": {
+    "OFFON_EXTERNAL_SOURCE": "dynatrace-community"
+  }
+}

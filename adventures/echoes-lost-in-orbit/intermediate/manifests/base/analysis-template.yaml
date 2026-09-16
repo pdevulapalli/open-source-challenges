@@ -1,0 +1,36 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: echo-analysis
+spec:
+  args:
+    - name: namespace
+  metrics:
+    - name: container-restarts
+      successCondition: result[0] > 0
+      failureLimit: 0
+      inconclusiveLimit: 0
+      consecutiveErrorLimit: 0
+      count: 1
+      provider:
+        prometheus:
+          address: http://prom-server.prometheus.svc.cluster.local
+          query: |
+            # There should be no restarts
+            sum(increase(kube_pod_container_status_restarts_total{
+              namespace="{{args.namespace}}",
+              pod=~"echo-server-.*"
+            }[1m])) or vector(0)
+    - name: ready-containers
+      successCondition: result[0] >= 1
+      failureLimit: 0
+      inconclusiveLimit: 0
+      consecutiveErrorLimit: 0
+      count: 1
+      provider:
+        prometheus:
+          address: http://prometheus-server.prometheus.svc.cluster.local
+          query: |
+            # Check how many containers are ready (should be at least 1)
+            # Look at kube_pod_container_status_* metrics
+            # Test in Prometheus UI (port 30102 in the "Ports" tab of VS Code)
