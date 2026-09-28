@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: echo-server
-          image: stefanprodan/podinfo:6.8.0
+          image: stefanprodan/podinfo:6.9.3
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9898
