@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: hotrod
-          image: jaegertracing/example-hotrod:1.75.0
+          image: jaegertracing/example-hotrod:1.76.0
           imagePullPolicy: IfNotPresent
           args: ["all"]
           env:
