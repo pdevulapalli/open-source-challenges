@@ -6,7 +6,7 @@ metadata:
 spec:
   generators:
     - git:
-        repoURL: __REPO_URL__
+        repoURL: https://github.com/pdevulapalli/open-source-challenges.git
         revision: HEAD
         directories:
           - path: adventures/echoes-lost-in-orbit/intermediate/manifests/overlays/*
@@ -18,7 +18,7 @@ spec:
     spec:
       project: default
       source:
-        repoURL: __REPO_URL__
+        repoURL: https://github.com/pdevulapalli/open-source-challenges.git
         targetRevision: HEAD
         path: adventures/echoes-lost-in-orbit/intermediate/manifests/overlays/{{ path.basename }}
       destination:
