@@ -49,4 +49,23 @@ spec:
                 hotrod_namespace="{{args.namespace}}",
                 hotrod_pod_hash="{{args.canary-hash}}"
               }[2m]))
+
+    - name: traffic-detection
+      initialDelay: 90s
+      interval: 10s
+      count: 5
+      successCondition: result[0] >= 0.05
+      failureLimit: 3
+      inconclusiveLimit: 5
+      consecutiveErrorLimit: 3
+      provider:
+        prometheus:
+          address: http://prometheus-server.prometheus.svc.cluster.local
+          query: |
+            sum(rate(hotrod_requests_total{
+            namespace="{{args.namespace}}",
+            rollouts_pod_template_hash="{{args.canary-hash}}"
+            }[2m]))
             )
+
+
